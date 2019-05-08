@@ -1,0 +1,263 @@
+// when infusion is done, the counter the amount dispensed does not reset, so we cannot infuse more fluid if the user wanted to
+// currently user has no way to reset this (besides unplugging) which makes this a problem of LIVENESS
+
+
+menu UserControlMenu = {
+    change_settings, 
+	clear_rate, 
+	confirm_settings, 
+	connect_set,
+    dispense_main_med_flow, 
+	enter_value, 
+	erase_and_unlock_line,
+    flow_unblocked, 
+	sound_alarm, 
+	lock_unit, 
+	plug_in, 
+	press_cancel, 
+    press_set,
+	set_rate, 
+	silence_alarm,
+	turn_off,
+	unlock_unit,
+	unplug,
+    flow_blocked,
+	hold,
+	wait_one_minute, // user does nothing for one minute
+	wait_six_min,
+	rate,
+	occlusion_alarm_setting,
+	run
+}
+
+	
+//======================
+// Constants and Ranges
+//======================
+
+//
+// States of the pump alarm
+//
+const AlarmActivated = 0    // Alarm currently active
+const AlarmSilenced  = 1    // Alarm currently inactive
+
+range AlarmStateT = AlarmActivated .. AlarmSilenced
+
+//
+// States of the pump settings
+//
+const ParamsNotSet = 2    // pump parameters not set yet
+const ParamsSet    = 3    // pump parameters already set
+
+range ParamsStateT = ParamsNotSet .. ParamsSet
+
+//
+// Locked/unlocked states of a line with respect to a pump channel
+//
+const LineUnlocked = 4  // line not locked into a pump channel 
+const LineLocked   = 5  // line locked into a pump channel
+
+range LineLockStateT = LineUnlocked .. LineLocked
+
+//
+// Locked/unlocked states of the pump unit
+//
+const UnitUnlocked = 6  // the keypad of the pump is not locked
+const UnitLocked   = 7  // the keypad of the pump is manually locked
+const UnitAutoLocked = 8 // the keypad of the pump is automatically locked
+
+range UnitLockStateT = UnitUnlocked .. UnitAutoLocked
+
+const BatteryNone = 9
+const BatteryLow = 10
+const BatteryHigh = 11
+range BatteryLevelT = BatteryNone .. BatteryHigh
+
+const AlarmSettingLow = 0
+const AlarmSettingMed = 1
+const AlarmSettingHigh = 2
+range AlarmSettingT = AlarmSettingLow .. AlarmSettingHigh
+
+const InfusionNotSet = -1
+const InfusionMin = 0
+const InfusionMax = 5
+range InfusionAmtT = InfusionNotSet .. InfusionMax
+
+const InfusionAmt_fortest = 4
+
+//=====================
+// Process Definitions
+//=====================
+
+PUMP = UNPLUGGED,
+
+UNPLUGGED =
+(
+    plug_in -> POWER_OFF
+	|
+	battery -> CHECK_BATTERY[BatteryLow] // TODO: get actual battery level from device
+),
+
+CHECK_BATTERY[batteryLevel:BatteryLevelT] = 
+(
+	when(batteryLevel == BatteryNone)
+		unplug -> UNPLUGGED
+	|
+	when(batteryLevel >= BatteryLow)
+		plug_in -> POWER_OFF
+),
+
+POWER_OFF = 
+(
+    turn_on -> SETUP[ParamsNotSet][LineUnlocked][InfusionNotSet][0]
+),
+
+//
+// Pump in setup mode:
+// - Once required pump parameters (just rate in this case) are set,
+//   physical connections can be made and line can be locked
+//
+SETUP[params:ParamsStateT][lineLock:LineLockStateT][amtTODO:InfusionAmtT][alreadyDone:InfusionAmtT] = 
+(
+    unplug -> UNPLUGGED
+    |
+    turn_off -> POWER_OFF
+    |
+    when (params == ParamsNotSet && lineLock == LineUnlocked)
+        set_rate -> enter_value -> 
+            (press_set -> SETUP[ParamsSet][lineLock][InfusionAmt_fortest][alreadyDone]
+             |
+             press_cancel -> SETUP[ParamsNotSet][lineLock][InfusionNotSet][alreadyDone])
+    |
+    when (params == ParamsSet && lineLock == LineUnlocked)
+        clear_rate -> SETUP[ParamsNotSet][lineLock][InfusionNotSet][alreadyDone]
+    |
+    when (params == ParamsSet && lineLock == LineUnlocked)
+        connect_set -> purge_air -> lock_line -> SETUP[params][LineLocked][amtTODO][alreadyDone]
+    |
+    when (lineLock == LineLocked)
+        confirm_settings -> INFUSION[UnitUnlocked][amtTODO][alreadyDone]
+    |
+    when (lineLock == LineLocked)
+        erase_and_unlock_line -> SETUP[params][LineUnlocked][InfusionNotSet][alreadyDone]
+),
+
+//
+// Pump in infusion mode:
+// - Always be able to turn the unit off, even if locked
+// - Allow the user to lock/unlock the unit
+// - Errors could occur with the pump (e.g., line became pinched or plugged)
+//
+INFUSION[unitLock:UnitLockStateT][amtRequired:InfusionAmtT][alreadyDone:InfusionAmtT] =
+(
+    unplug -> UNPLUGGED
+    |
+    turn_off -> POWER_OFF
+    |
+    when (unitLock == UnitUnlocked)
+        change_settings -> SETUP[ParamsSet][LineLocked][amtRequired][alreadyDone]
+    |
+    when (unitLock == UnitUnlocked)
+        lock_unit -> INFUSION[UnitLocked][amtRequired][alreadyDone]
+    |
+	when (unitLock == UnitUnlocked)
+		hold -> HOLD[amtRequired][alreadyDone]
+	|
+	when (unitLock == UnitUnlocked)
+		rate -> set_rate -> enter_value -> // will change the rate of infusion (doesn't actually do anything now since model does not record rate)
+			(press_set -> INFUSION[unitLock][amtRequired][alreadyDone]
+             |
+             press_cancel -> INFUSION[unitLock][amtRequired][alreadyDone])
+	|
+    when (unitLock == UnitLocked)
+        unlock_unit -> INFUSION[UnitUnlocked][amtRequired][alreadyDone]
+    |
+	when (unitLock == UnitAutoLocked)
+		unlock_unit -> unlock_unit -> INFUSION[UnitUnlocked][amtRequired][alreadyDone]
+	|
+	when (amtRequired > alreadyDone)
+	    dispense_main_med_flow -> INFUSION[unitLock][amtRequired][alreadyDone + 1]
+    |
+    flow_blocked -> sound_alarm -> INFUSION_BLOCKED[unitLock][AlarmActivated][amtRequired][alreadyDone]
+	|
+	wait_one_minute -> INFUSION[UnitAutoLocked][amtRequired][alreadyDone] // enter locked state automatically
+	|
+	when (amtRequired <= alreadyDone)
+		infusion_complete -> INFUSION_DONE[alreadyDone]
+),
+
+HOLD[amtReq:InfusionAmtT][alreadyDone:InfusionAmtT] = 
+(
+	run -> SETUP[ParamsNotSet][LineUnlocked][amtReq][alreadyDone]
+	|
+	occlusion_alarm_setting -> ALARM_SETTING[AlarmSettingLow][amtReq][alreadyDone] // should really be the current setting, which is passed around the entire system and a parameter for every state
+),
+
+//
+// Pump stuck (medication flow suspended)
+//
+INFUSION_BLOCKED[unitLock:UnitLockStateT][alarm:AlarmStateT][amtReq:InfusionAmtT][alreadyDone:InfusionAmtT] =
+(
+    unplug -> UNPLUGGED
+    |
+    turn_off -> POWER_OFF
+    |
+    when (alarm == AlarmActivated)
+        sound_alarm -> INFUSION_BLOCKED[unitLock][alarm][amtReq][alreadyDone]
+    |
+    when (alarm == AlarmActivated && unitLock == UnitUnlocked)
+        silence_alarm -> INFUSION_BLOCKED[UnitUnlocked][AlarmSilenced][amtReq][alreadyDone]
+    |
+	when (alarm == AlarmActivated && unitLock == UnitLocked)
+		unlock_unit -> INFUSION_BLOCKED[UnitUnlocked][alarm][amtReq][alreadyDone]
+	|
+	when (alarm == AlarmActivated && unitLock == UnitAutoLocked)
+		unlock_unit -> unlock_unit -> INFUSION_BLOCKED[UnitUnlocked][alarm][amtReq][alreadyDone]
+	|
+    flow_unblocked -> INFUSION[unitLock][amtReq][alreadyDone]
+),
+
+ALARM_SETTING[setting:AlarmSettingT][amtReq:InfusionAmtT][alreadyDone:InfusionAmtT] = 
+(
+	occlusion_alarm_setting -> ALARM_SETTING[(setting + 1)%3][amtReq][alreadyDone]
+	|
+	run -> SETUP[ParamsNotSet][LineUnlocked][amtReq][alreadyDone]
+),
+
+INFUSION_DONE[alreadyDone:InfusionAmtT] = 
+(
+	hold -> setup_new -> SETUP[ParamsNotSet][LineUnlocked][InfusionMin][alreadyDone]
+	|
+	silence_alarm -> KVO
+),
+
+KVO = 
+(
+	wait_six_min -> INFUSION_DONE
+).
+
+
+INFUSION_AMT_CHECKER = INFUSION_COUNTER[0],
+
+INFUSION_COUNTER[amtDone:0..InfusionMax+1] = (
+	when(amtDone == InfusionAmt_fortest - 1)
+		dispense_main_med_flow -> goal_reached -> good -> INFUSION_COUNTER[amtDone + 1]
+	|
+	dispense_main_med_flow -> good -> INFUSION_COUNTER[amtDone + 1]
+	|
+	when(amtDone >= InfusionMax)
+		dispense_main_med_flow -> bad-> ERROR
+	|
+	turn_off -> INFUSION_COUNTER[0]
+	|
+	unplug -> INFUSION_COUNTER[0]
+	|
+	setup_new -> INFUSION_COUNTER[0]
+).
+
+fluent NO_ERR = <good, bad> initially 1
+assert SAFE = [](NO_ERR)
+
+fluent DISP = <goal_reached, no>
+assert LIVE = <>(NO_ERR && DISP)
+

@@ -1,0 +1,203 @@
+
+% medical device image of boeing airplane
+% state machine picture
+
+
+\documentclass[final,20pt]{beamer}
+\usepackage{tikz}
+\usetikzlibrary{arrows.meta, positioning}
+\usepackage[size=custom, width=101.6, height=76.2, scale=1.00]{beamerposter}
+\usepackage{lipsum}
+\usetheme{confposter}
+\usepackage{microtype}
+
+\setbeamercolor{block title}{fg=CMURed,bg=white}
+\setbeamercolor{block body}{fg=black,bg=white}
+
+\newlength{\sepwid}  
+\newlength{\onecolwid}  
+\newlength{\twocolwid}  
+\setlength{\sepwid}{0.024\paperwidth}
+\setlength{\onecolwid}{0.301\paperwidth}
+\setlength{\twocolwid}{0.627\paperwidth}
+\newlength{\specialA}
+\newlength{\specialB}
+\setlength{\specialA}{0.402\paperwidth}
+\setlength{\specialB}{0.201\paperwidth}
+\setlength{\topmargin}{-0.5in}
+%-----------------------------------------------------------
+
+\usepackage{graphicx}  % Required for including images
+
+\tikzset{%
+  >={Latex[width=2mm,length=2mm]},
+            smallnode/.style = {rectangle, rounded corners, draw=black,
+            minimum width=4cm, minimum height=2cm,
+            text centered, fill=CMURed!15}
+}
+\tikzset{%
+  >={Latex[width=2mm,length=2mm]},
+            bignode/.style = {rectangle, rounded corners, draw=black,
+            minimum width=4cm, minimum height=4cm,
+            text centered, fill=CMURed!30}
+}
+%----------------------------------------------------------------------------------------
+%	TITLE SECTION 
+%----------------------------------------------------------------------------------------
+
+\title{Verification and Repair of Human Machine Interactions} % Poster title
+
+\author{\Large Brian Wei \textbullet{} Eunsuk Kang} % Author(s)
+%\institute{Carnegie Mellon University}
+
+\begin{document}
+\addtobeamertemplate{block end}{}{\vspace*{5ex}} % White space under blocks
+\addtobeamertemplate{block alerted end}{}{\vspace*{2ex}} % White space under highlighted (alert) blocks
+
+\setlength{\belowcaptionskip}{2ex} % White space under figures
+\setlength\belowdisplayshortskip{2ex} % White space under equations
+
+
+% -------- ABSTRACT -----------
+ % Poorly designed interfaces can pose a major danger to users in systems where safety is a primary concern — for example, many inadequately created medical devices, which have rectifiable designs, have led to unnecessary fatalities. This research project is focused on modeling these complex systems and the human interactions with them as finite state machines and to then prove or correct their safety. There are three main thrusts to this project. First, we model and simplify complex systems and possible human interactions with them into finite state processes. Second, we create a way to systematically induce errors into our correct models based on typical erroneous human behavior. Finally, we seek to procedurally correct potentially unsafe models.
+ 
+\begin{frame}[t]
+\begin{columns}[t]
+\begin{column}{\sepwid}\end{column}
+\begin{column}{\onecolwid}
+% -------- MOTIVATION ----------
+\begin{block}{\Large Motivation}
+\large Poorly designed interfaces can pose a major danger to users in systems where safety is a primary concern.  For example, many inadequately created medical devices, which have rectifiable designs, have led to unnecessary fatalities [3].  This research project is focused on modelling these complex systems and the human interactions with them in order ultimately fix potential unsafe behaviour in an automated manner.
+\end{block}
+
+% -------- MODELLING ---------
+\begin{block}{\Large Modelling}
+\large The first step is to model the project is to simplify incredibly complex machines and human interactions with them into something that can be worked with.  We choose to represent these as finite state processes (FSP): they will demonstrate all actions humans can take on a machine.  Safety properties are also represented by FSPs which certain states are defined as unsafe and erroneous.
+
+\begin{tabular}{ccc}
+      \hfill   & \hspace{2cm}\includegraphics[width=0.8\linewidth]{fspexample.png} & \hfill
+\end{tabular}
+\vspace{-2cm}
+\end{block}
+
+% -------- CHECKING STUFF? ---------
+\begin{block}{\Large Verification}
+\large To check properties we use a Labelled Transition System Analyser (LTSA) which will take as input FSPs representing the machine, human, and a property.  The analyser will check all sequences of actions to either show that there exists a trace where the property is violated and provide such a counterexample or indicate that the property is always satisfied.
+\end{block}
+
+\end{column}
+\begin{column}{\sepwid}\end{column}
+\begin{column}{\twocolwid}
+\begin{block}{\Large Error Patters}
+\large Research [1] has indicated the humans tend to make mistakes in predictable patterns (e.g. omitting steps, performing steps out of order).  We aim to encode examples of these errors into FSP which can then be used as \textit{gadgets}.  The mutation tool would take these patterns to generate examples of erroneous models -- this would typical human behaviour that is potentially unsafe.
+%TODO *** it turns out people make mistakes in patterns (e.g. omitting steps, doing things out of order) so we get a bunch of these and encode them into FSP to look for them
+\end{block}
+
+\begin{columns}[t,totalwidth=\twocolwid] % Split up the two columns wide column
+
+
+\begin{column}{\specialA}\vspace{-.6in} % The first column within column 2 (column 2.1)
+
+\begin{block}{\Large Flow}
+\begin{center}
+    \begin{tikzpicture}[every node/.style={fill=white}, align=center]
+  % Specification of nodes (position, etc.)
+  \node (UI)  [smallnode]                {\large UI Model};
+  \node (Human) [smallnode, below=5cm of UI] {\large Human \\ \large Behaviour \\ \large Model};
+  \node (Prop) [smallnode, below=5cm of Human] {\large Safety Property};
+  \node (Mutation) [bignode, below right=2cm and 5cm of UI] {\LARGE Mutation \\ \LARGE Tool};
+  \node (Repair) [bignode, below=5cm of Mutation] {\LARGE Repair \\ \LARGE Tool};
+  \node (Err) [smallnode, right=5cm of Mutation] {\large Erroneous Model};
+  \node (fixed) [smallnode, right=5cm of Repair] {\large Repaired \\\large UI Model};
+  \node (verif) [bignode, above right=5cm and 2.5cm of Mutation] {\LARGE Verifier};
+  \node (Patt) [smallnode, left=5cm of verif] {\large Error Patterns};
+  % Specification of lines between nodes specified above
+  % with aditional nodes for description 
+  
+\draw [arrows={->[scale=4]}, line width=3.2mm]
+  (UI) edge (Mutation) 
+  (Mutation) edge (Err)
+  (Err) edge (Repair)
+  (Repair) edge (fixed);
+ 
+ \draw [arrows={->[scale=3]}] (Mutation) edge (Repair)
+                            (Prop) edge (Mutation) edge (Repair)
+                            (Human) edge (Mutation) edge (Repair)
+                            (Patt) edge (Mutation);
+
+\draw[arrows={->[scale=3]}, bend left] (verif) edge (Mutation) 
+    (Mutation) edge (verif);
+\end{tikzpicture}
+\end{center}
+\large We take the UI Model, a model of relevant human behaviour, and some safety property and put them through a mutation tool.  This will ensure that we have an erroneous model for our repair tool to correct.  The mutation tool will rely on using a verifier to check the model for the property.
+\end{block}
+
+\begin{block}{\normalsize References}
+\begin{enumerate}[1 ]
+    \item \normalsize Bolton, Matthew L. (2017) A task-based taxonomy of erroneous human behavior. International Journal of Human-Computer Studies.
+    \item \normalsize Bolton ML, Bass EJ (2011) Evaluating Human-automation Interaction Using Task Analytic Behavior Models, Strategic Knowledge-based Erroneous Human Behavior Generation, and Model Checking.
+    \item \normalsize Thimbleby, Harold (2013) Improving safety in medical devices and systems.  IEEE International Conference on Healthcare Informatics.
+\end{enumerate}
+\end{block}
+
+\end{column} % End of column 2.1
+
+\begin{column}{\specialB}\vspace{-2cm} % The second column within column 2 (column 2.2)
+
+\normalsize Gadget example: we can interpret the first state machine as a ideal behaviour.  But, a human user can make a mistake by performing the actions in the wrong order, leading to different states being reached.
+\begin{center}
+\begin{tikzpicture}[scale=0.45]
+\tikzstyle{every node}+=[inner sep=0pt]
+\draw [black] (13.8,-13) circle (3);
+\draw (13.8,-13) node {$q_0$};
+\draw [black] (22.1,-7.4) circle (3);
+\draw (22.1,-7.4) node {$q_1$};
+\draw [black] (22.1,-17.3) circle (3);
+\draw (22.1,-17.3) node {$q_2$};
+\draw [black] (39,-11.8) circle (3);
+\draw (39,-11.8) node {$q_0$};
+\draw [black] (49.3,-5.5) circle (3);
+\draw (49.3,-5.5) node {$q_2$};
+\draw [black] (49.3,-15.8) circle (3);
+\draw (49.3,-15.8) node {$q_1$};
+\draw [black] (16.2,-11.2) -- (19.58,-9.02);
+\fill [black] (19.58,-9.02) -- (18.63,-9.04) -- (19.18,-9.88);
+\draw [black] (22.1,-10.5) -- (22.1,-14.3);
+\fill [black] (22.1,-14.3) -- (22.6,-13.5) -- (21.6,-13.5);
+\draw [black] (19.3,-16.1) -- (16.41,-14.47);
+\fill [black] (16.41,-14.47) -- (16.86,-15.3) -- (17.36,-14.43);
+\draw [black] (41.4,-10.1) -- (46.71,-7.01);
+\fill [black] (46.71,-7.01) -- (45.76,-6.98) -- (46.27,-7.84);
+\draw [black] (49.3,-8.5) -- (49.3,-12.8);
+\fill [black] (49.3,-12.8) -- (49.8,-12) -- (48.8,-12);
+\draw [black] (46.4,-15.2) -- (41.73,-13.05);
+\fill [black] (41.73,-13.05) -- (42.24,-13.84) -- (42.66,-12.93);
+\draw [black] (8.4,-13) -- (10.8,-13);
+\fill [black] (10.8,-13) -- (10,-12.5) -- (10,-13.5);
+\draw [black] (33.5,-11.8) -- (36,-11.8);
+\fill [black] (36,-11.8) -- (35.2,-11.3) -- (35.2,-12.3);
+\end{tikzpicture}
+\end{center}
+\vspace{1cm}
+\begin{block}{\Large Future Work}
+\large The main focus for future work is to build the repair tool.  This repair tool would take as input an erroneous model and some safety property.  It will then aim systematically change transitions and some states until the the model will satisfy the property.\\
+
+\large Ultimately, the goal would be to model many devices to automatically and formally verify safety properties, and, if necessary, correct and repair those.  These models could be used is many case studies such as an infusion pump, radiation therapy system, airplane pilot interface, and self-driving vehicle.
+
+\end{block}
+\begin{center}
+    \begin{tabular}{ccc}
+     \includegraphics[width=0.28\linewidth]{CMUlogo.eps} & \hfill & \includegraphics[width=0.50\linewidth]{isr-logo.eps}
+    \end{tabular}
+\end{center}
+\end{column}
+\end{columns}
+
+\end{column}
+
+\begin{column}{\sepwid}\end{column}
+
+\end{columns}
+\end{frame}
+
+\end{document}
